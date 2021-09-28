@@ -1,6 +1,4 @@
-#ifdef USEBOOL
 #include <stdio.h>
-#endif
 
 int main()
 {
