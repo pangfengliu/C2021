@@ -13,7 +13,7 @@ int main()
   int max1start, max1end;
   
   while (scanf("%d", &n) != EOF) {
-    switch (n):
+    switch (n) {
     case 1:
       if (last1 >= 0) 		/* not the first */
 	dist1 = index - last1;
