@@ -36,14 +36,8 @@ void count(int **p[])
   int frequency[512];
   int object[512];
  
-  for (int ***top = p; *top != NULL; top++) {
-    int **ptr1 = *top;
-    int *ptr2 = *ptr1;
-#ifdef DEBUG
-    printf("%p %d\n", ptr2, *ptr2);
-#endif
-    count = insert(ptr2, ptrTable, frequency, object, count);
-  }
+  for (int i = 0; p[i] != NULL; i++) 
+    count = insert(*p[i], ptrTable, frequency, object, count);
  
   sort(frequency, object, count);
  
