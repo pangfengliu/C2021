@@ -2,6 +2,7 @@
 #include <string.h>
 #include <assert.h>
 #include <math.h>
+#include <stdlib.h>
 
 int seq(char c, int n)
 {
@@ -52,9 +53,12 @@ double freq(char *name)
   return f;
 }
 
+#define MAXF 10
+
 typedef struct note
 {
-  double frequency;
+  int feqNum;
+  double frequency[MAXF];
   double duration;
 } Note;
 
@@ -75,54 +79,56 @@ typedef struct WAVheader
   int dataSize;
 } WAVHeader;
 
-#define SAMPLE 65536
+// #define SAMPLE 65536
 #define LOWFREQTHRESHOLD 100
 #define MAGNIFYFACTOR 20000
+#define MAXSAMPLE 100000
 
 #define min(a, b) (a < b? a:b)
 
-int genWAV(Note note[], int n, FILE *fp, WAVHeader header)
+
+int genWAV(Note note[], int noteNum, FILE *fp, WAVHeader header)
 {
-  int i, j, noteNum;
   int dataSize = 0;
   const double PI = 3.1415926;
-  short sample[SAMPLE];
-  short zero[SAMPLE] = {0};
 
-  for (noteNum = 0; noteNum < n; noteNum++) {
-    int frequency = note[noteNum].frequency;
-    int numOfSamples = note[noteNum].duration * header.sampleRate;
 
-    if (frequency < LOWFREQTHRESHOLD) {
-      int samplesToWrite = 2 * numOfSamples; /* two channels */
-      while (samplesToWrite > 0) {
-	fwrite(zero, sizeof(short), min(SAMPLE, samplesToWrite), fp);
-	dataSize += sizeof(short) * min(SAMPLE, samplesToWrite);
-	samplesToWrite -= min(SAMPLE, samplesToWrite);
-      }
-    }
-    else {
-      int samplePerCycle = header.sampleRate / (double)frequency;
-      double duration = note[noteNum].duration;
-      int numCycle = (int)(duration * frequency);
-      double delta = (2.0 * PI) / samplePerCycle;
+  for (int n = 0; n < noteNum; n++) {
+    int sampleNum = note[n].duration * header.sampleRate;
+    assert(sampleNum < MAXSAMPLE);
+    printf("sample number %d\n", sampleNum);
+    short int samples[MAXSAMPLE * 2] = {0}; /* two channels */
     
-      printf("%d samples per second\n", header.sampleRate);
-      printf("%d samples per cycle\n", samplePerCycle);
-      printf("%d cycles to write\n", numCycle);
-
-      assert(samplePerCycle < SAMPLE);
-      for (i = 0; i < samplePerCycle; i++) {
-	sample[i] = sin(delta * i) * MAGNIFYFACTOR;
-      }
-      for (i = 0; i < numCycle; i++) {
-	for (j = 0; j < samplePerCycle; j++) {
-	  fwrite(&(sample[j]), sizeof(short), 1, fp);
-	  fwrite(&(sample[j]), sizeof(short), 1, fp);
-	  dataSize += 2 * sizeof(short);
+    for (int f = 0; f < note[n].feqNum; f++) {
+      double frequency = note[n].frequency[f];
+      if (frequency < LOWFREQTHRESHOLD) {
+	printf("warning, low frequency %lf\n", frequency);
+	assert(note[n].feqNum == 1);
+	short zero[MAXSAMPLE * 2] = {0};
+	fwrite(zero, sizeof(short), 2 * sampleNum, fp);
+	dataSize += sizeof(short) * 2 * sampleNum;
+	break;			/* get out of loop */
+      } else {
+	int samplePerCycle = header.sampleRate / (double)frequency;
+	assert(samplePerCycle < sampleNum);
+	printf("%d samples per cycle\n", samplePerCycle);	
+	double duration = note[n].duration;
+	double delta = (2.0 * PI) / samplePerCycle;
+	short sins[samplePerCycle];
+	for (int s = 0; s < samplePerCycle; s++) 
+	  sins[s] = (sin(delta * s) * MAGNIFYFACTOR) / note[n].feqNum;
+	int sindex = 0;
+	while (sindex + 2 * samplePerCycle <= sampleNum) {
+	  for (int s = 0; s < samplePerCycle; s++) {
+	    samples[sindex++] += sins[s]; /* two channels */
+	    samples[sindex++] += sins[s];
+	  }
 	}
+	printf("%d samples added for freq %lf\n", sindex, frequency);
       }
     }
+    fwrite(samples, sizeof(short), 2 * sampleNum , fp);
+    dataSize += sizeof(short) * 2 * sampleNum;
   }
   return dataSize;
 }
@@ -138,23 +144,35 @@ int main()
   int dataSize = 0;
   Note note[MAXNOTE];
 
-  char name[4];
-  double beat;
-  int i = 0;
+
   int beatPerSecond;
   scanf("%d", &beatPerSecond);
-  while (scanf("%lf%s", &beat, name) != EOF) {
-    note[i].frequency = freq(name);
-    note[i].duration = (60.0 / beatPerSecond) * beat;
-    printf("%f %f\n", note[i].frequency, note[i].duration);
-    i++;
+
+  char line[1024];
+  int n = 0;
+  while (fgets(line, 1023, stdin) != NULL) {
+    char *beatptr = strtok(line, " \t\n");
+    if (beatptr == NULL)
+      continue;
+    
+    note[n].duration = (60.0 / beatPerSecond) * atof(beatptr);
+    char *name;
+    while ((name = strtok(NULL, " \t\n")) != NULL)
+      note[n].frequency[note[n].feqNum++] = freq(name);
+
+    printf("duration %f seconds ", note[n].duration);
+    for (int i = 0; i < note[n].feqNum; i++)
+      printf("frequency %f ", note[n].frequency[i]);
+    printf("\n");
+    n++;
   }
   
   FILE *fp;
   fp = fopen("sample.wav", "wb");
+  assert(fp != NULL);
   fwrite(&header, sizeof(WAVHeader), 1, fp);
 
-  dataSize = genWAV(note, i, fp, header);
+  dataSize = genWAV(note, n, fp, header);
   printf("dataSize = %d\n", dataSize);
   int chunkSize = dataSize + 36;
   printf("chunkSize = %d\n", chunkSize);
