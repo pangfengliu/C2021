@@ -118,7 +118,7 @@ int genWAV(Note note[], int noteNum, FILE *fp, WAVHeader header)
 	for (int s = 0; s < samplePerCycle; s++) 
 	  sins[s] = (sin(delta * s) * MAGNIFYFACTOR) / note[n].feqNum;
 	int sindex = 0;
-	while (sindex + 2 * samplePerCycle <= sampleNum) {
+	while (sindex + 2 * samplePerCycle <= 2 * sampleNum) {
 	  for (int s = 0; s < samplePerCycle; s++) {
 	    samples[sindex++] += sins[s]; /* two channels */
 	    samples[sindex++] += sins[s];
@@ -151,13 +151,13 @@ int main()
   char line[1024];
   int n = 0;
   while (fgets(line, 1023, stdin) != NULL) {
-    char *beatptr = strtok(line, " \t\n");
+    char *beatptr = strtok(line, " \t\n\r");
     if (beatptr == NULL)
       continue;
     
     note[n].duration = (60.0 / beatPerSecond) * atof(beatptr);
     char *name;
-    while ((name = strtok(NULL, " \t\n")) != NULL)
+    while ((name = strtok(NULL, " \t\n\r")) != NULL)
       note[n].frequency[note[n].feqNum++] = freq(name);
 
     printf("duration %f seconds ", note[n].duration);
